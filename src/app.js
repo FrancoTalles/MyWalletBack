@@ -121,8 +121,6 @@ app.get("/home/:userId", async (req, res) => {
   const auth = req.headers.authorization;
   const token = auth?.replace("Bearer ", "");
   const id = req.params.userId;
-  console.log(auth);
-  console.log(id);
 
   if (!auth) {
     return res.sendStatus(401);
@@ -144,15 +142,49 @@ app.get("/home/:userId", async (req, res) => {
     .toArray();
 
   if (!resp) {
-    console.log(resp);
     return res.status(200).send([]);
   } else {
-    console.log(resp);
     return res.status(200).send(resp);
   }
 });
 
+app.post("/nova-entrada", async (req, res) => {
+  const entrada = req.body;
+  const auth = req.headers.authorization;
+  const token = auth?.replace("Bearer ", "");
+  entrada.valor = Number(entrada.valor);
 
+  const entradaSchema = joi.object({
+    userId: joi.string().required(),
+    valor: joi.number().min(0).required(),
+    descricao: joi.string().required(),
+    data: joi.string().required(),
+    type: joi.string().valid("input").required(),
+  });
+
+  try {
+    const validation = entradaSchema.validate(entrada, { abortEarly: false });
+
+    if (validation.error) {
+      const errors = validation.error.details.map((detail) => detail.message);
+      return res.status(422).send(errors);
+    }
+
+    const online = await db.collection("sessions").findOne({
+      token: token,
+    });
+
+    if (!online) {
+      return res.status(404).send("Usuario não logado");
+    }
+
+    await db.collection("movements").insertOne(entrada);
+
+    return res.sendStatus(200);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+});
 
 // Port
 
