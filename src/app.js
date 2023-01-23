@@ -1,7 +1,7 @@
 // Importações
 import express from "express";
 import cors from "cors";
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 import dotenv from "dotenv";
 import joi from "joi";
 import bcrypt from "bcrypt";
@@ -52,24 +52,21 @@ app.post("/login", async (req, res) => {
   });
 
   if (respUser && bcrypt.compareSync(user.password, respUser.password)) {
-    
     const token = uuid();
 
     await db.collection("sessions").insertOne({
       userId: respUser._id,
-      token: token
+      token: token,
     });
 
     return res.status(200).send({
       userId: respUser._id,
       name: respUser.name,
       token: token,
-    })
-
+    });
   } else {
     return res.status(404).send("Email ou Senha Incorretos");
   }
-
 });
 
 app.post("/cadastro", async (req, res) => {
@@ -119,6 +116,43 @@ app.post("/cadastro", async (req, res) => {
     res.status(500).send(error.message);
   }
 });
+
+app.get("/home/:userId", async (req, res) => {
+  const auth = req.headers.authorization;
+  const token = auth?.replace("Bearer ", "");
+  const id = req.params.userId;
+  console.log(auth);
+  console.log(id);
+
+  if (!auth) {
+    return res.sendStatus(401);
+  }
+
+  const online = await db.collection("sessions").findOne({
+    token: token,
+  });
+
+  if (!online) {
+    return res.status(404).send("Usuario não logado");
+  }
+
+  const resp = await db
+    .collection("movements")
+    .find({
+      userId: `${id}`,
+    })
+    .toArray();
+
+  if (!resp) {
+    console.log(resp);
+    return res.status(200).send([]);
+  } else {
+    console.log(resp);
+    return res.status(200).send(resp);
+  }
+});
+
+
 
 // Port
 
