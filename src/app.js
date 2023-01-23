@@ -5,6 +5,7 @@ import { MongoClient } from "mongodb";
 import dotenv from "dotenv";
 import joi from "joi";
 import bcrypt from "bcrypt";
+import { v4 as uuid } from "uuid";
 
 // Iniciando Configurações
 
@@ -46,7 +47,29 @@ app.post("/login", async (req, res) => {
     return res.status(422).send(errors);
   }
 
-  res.status(200).send("Rota Login funcionando");
+  const respUser = await db.collection("users").findOne({
+    email: user.email,
+  });
+
+  if (respUser && bcrypt.compareSync(user.password, respUser.password)) {
+    
+    const token = uuid();
+
+    await db.collection("sessions").insertOne({
+      userId: respUser._id,
+      token: token
+    });
+
+    return res.status(200).send({
+      userId: respUser._id,
+      name: respUser.name,
+      token: token,
+    })
+
+  } else {
+    return res.status(404).send("Email ou Senha Incorretos");
+  }
+
 });
 
 app.post("/cadastro", async (req, res) => {
@@ -75,7 +98,7 @@ app.post("/cadastro", async (req, res) => {
     }
 
     const resp = await db.collection("users").findOne({
-      email: userCadastro.email
+      email: userCadastro.email,
     });
 
     if (resp) {
@@ -87,7 +110,8 @@ app.post("/cadastro", async (req, res) => {
     delete userCadastro.confirmPassword;
 
     await db.collection("users").insertOne({
-      ...userCadastro, password: senhaCriptografada
+      ...userCadastro,
+      password: senhaCriptografada,
     });
 
     return res.sendStatus(200);
