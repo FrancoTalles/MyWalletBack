@@ -186,6 +186,45 @@ app.post("/nova-entrada", async (req, res) => {
   }
 });
 
+app.post("/nova-saida", async (req, res) => {
+  const saida = req.body;
+  const auth = req.headers.authorization;
+  const token = auth?.replace("Bearer ", "");
+  saida.valor = Number(saida.valor);
+  console.log(token)
+
+  const saidaSchema = joi.object({
+    userId: joi.string().required(),
+    valor: joi.number().min(0).required(),
+    descricao: joi.string().required(),
+    data: joi.string().required(),
+    type: joi.string().valid("output").required(),
+  });
+
+  try {
+    const validation = saidaSchema.validate(saida, { abortEarly: false });
+
+    if (validation.error) {
+      const errors = validation.error.details.map((detail) => detail.message);
+      return res.status(422).send(errors);
+    }
+
+    const online = await db.collection("sessions").findOne({
+      token: token,
+    });
+
+    if (!online) {
+      return res.status(404).send("Usuario não logado");
+    }
+
+    await db.collection("movements").insertOne(saida);
+
+    return res.sendStatus(200);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+});
+
 // Port
 
 const PORT = 5000;
